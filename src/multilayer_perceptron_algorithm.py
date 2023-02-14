@@ -37,7 +37,8 @@ class MultilayerPerceptron(object):
         # Se hace este for por capa
         for layer in range(self.nlayers):
             wi = self.wi[layer]
-            y_hat, local_field = self.activation_function(inputs, wi)
+            act_func = self.act_func[layer]
+            y_hat, local_field = self.activation_function(act_func, inputs, wi)
             last_inputs = inputs
             inputs = y_hat
         return y_hat, local_field, last_inputs
@@ -59,13 +60,13 @@ class MultilayerPerceptron(object):
         average_energy = (1/N)*np.sum(instant_energy)
         return average_energy
 
-    def activation_function(self, xi_row, wi):
+    def activation_function(self, activation_function, xi_row, wi):
         local_field = np.dot(xi_row, wi)
-        if self.act_func == 'lineal':
+        if activation_function == 'lineal':
             y_hat = self.AF.lineal_function(local_field)
-        elif self.act_func == 'sigmoide':
+        elif activation_function == 'sigmoide':
             y_hat = self.AF.sigmoid_function(local_field)
-        elif self.act_func == 'tanh':
+        elif activation_function == 'tanh':
             y_hat = self.AF.tanh_function(local_field)
         return y_hat, local_field
 
@@ -76,16 +77,16 @@ class MultilayerPerceptron(object):
         return w
 
     def delta_w(self, errors, local_gradient):
-        delta_w = np.dot(errors, local_gradient.T)
+        delta_w = np.dot(errors, local_gradient)
         return delta_w
 
     def local_gradient(self, local_field, Yj):
-        if self.act_func == 'lineal':
-            local_gradient = np.dot(self.AF.lineal_derivate(local_field), Yj.T)
-        elif self.act_func == 'sigmoide':
-            local_gradient = np.dot(self.AF.sigmoid_derivate(local_field), Yj.T)
-        elif self.act_func == 'tanh':
-            local_gradient = np.dot(self.AF.tanh_derivate(local_field), Yj.T)
+        if self.act_func[-1] == 'lineal':
+            local_gradient = np.dot(self.AF.lineal_derivate(local_field).T, Yj)
+        elif self.act_func[-1] == 'sigmoide':
+            local_gradient = np.dot(self.AF.sigmoid_derivate(local_field).T, Yj)
+        elif self.act_func[-1] == 'tanh':
+            local_gradient = np.dot(self.AF.tanh_derivate(local_field).T, Yj)
         return local_gradient
 
     def plot_local_gradient(self, local_gradient_per_iter):
@@ -162,15 +163,15 @@ if __name__ == '__main__':
                    [1,0],
                    [1,1]])
     # OR
-    y = np.array([[0],
-                  [1],
-                  [1],
-                  [1]])
+    y = np.array([[0,0],
+                  [1,1],
+                  [1,1],
+                  [1,0]])
 
     niter = 200
     nlayers = 3
-    layers_size = [2,1,1]
-    act_func = 'sigmoide'
+    layers_size = [2,1,2]
+    act_func = ['sigmoide', 'lineal', 'sigmoide']
 
     MLperceptron = MultilayerPerceptron(act_func, niter, nlayers, layers_size, xi, y)
     y_hat, average_energy, average_error, w = MLperceptron.main()
