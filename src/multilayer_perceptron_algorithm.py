@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import scipy.io
 import pandas as pd
 from typing import List, Union
-from activation_functions import ActivationFunctions as AF
+from activation_functions import ActivationFunctions
 
 class MultilayerPerceptron(object):
 
@@ -19,6 +19,7 @@ class MultilayerPerceptron(object):
         self.m, self.n = xi.shape
         self.wi = self.initializing_w()
         self.act_func = act_func
+        self.AF = ActivationFunctions()
         # random.seed(10)
 
     def initializing_w(self) -> List[float]:
@@ -61,38 +62,12 @@ class MultilayerPerceptron(object):
     def activation_function(self, xi_row, wi):
         local_field = np.dot(xi_row, wi)
         if self.act_func == 'lineal':
-            y_hat = self.lineal_function(local_field)
+            y_hat = self.AF.lineal_function(local_field)
         elif self.act_func == 'sigmoide':
-            y_hat = self.sigmoid_function(local_field)
+            y_hat = self.AF.sigmoid_function(local_field)
         elif self.act_func == 'tanh':
-            y_hat = self.tanh_function(local_field)
+            y_hat = self.AF.tanh_function(local_field)
         return y_hat, local_field
-
-    # # FUNCIONES DE ACTIVACION
-    def lineal_function(self, local_field):
-        y_hat = 0.5*local_field + 1/2
-        return y_hat
-
-    def lineal_derivate(self, local_field):
-        derivate = 0.5
-        return derivate
-
-    def sigmoid_function(self, local_field):
-        y_hat = 1/(1+np.exp(-local_field))
-        return y_hat
-
-    def sigmoid_derivate(self, local_field):
-        derivate = self.sigmoid_function(local_field)*(1-self.sigmoid_function(local_field))
-        return derivate
-
-    def tanh_function(self, local_field):
-        y_hat = np.tanh(local_field)
-        return y_hat
-
-    def tanh_derivate(self, local_field):
-        derivate = 1-(np.tanh(local_field))**2
-        return derivate
-    # # FUNCIONES DE ACTIVACION
 
     def update_weights(self, delta_w):
         w = self.wi[-1]
@@ -106,11 +81,11 @@ class MultilayerPerceptron(object):
 
     def local_gradient(self, local_field, Yj):
         if self.act_func == 'lineal':
-            local_gradient = np.dot(self.lineal_derivate(local_field), Yj.T)
+            local_gradient = np.dot(self.AF.lineal_derivate(local_field), Yj.T)
         elif self.act_func == 'sigmoide':
-            local_gradient = np.dot(self.sigmoid_derivate(local_field), Yj.T)
+            local_gradient = np.dot(self.AF.sigmoid_derivate(local_field), Yj.T)
         elif self.act_func == 'tanh':
-            local_gradient = np.dot(self.tanh_derivate(local_field), Yj.T)
+            local_gradient = np.dot(self.AF.tanh_derivate(local_field), Yj.T)
         return local_gradient
 
     def plot_local_gradient(self, local_gradient_per_iter):
@@ -175,17 +150,27 @@ class MultilayerPerceptron(object):
 #%%
 if __name__ == '__main__':
     # Cargar datos
-    df = pd.read_csv(r'C:\Users\Asus\Documents\MAJO\Universidad\SEMESTRE 10\INTELIGENCIA ARTIFICIAL\DATOS.txt', sep=",", header=None,  names=["x1", "x2", "y"])
-    datos = df[0:300]
-    x1 = datos["x1"]
-    x2 = datos["x2"]
-    xi = np.transpose(np.array([x1,x2]))
-    y = np.array(datos["y"]).reshape(-1,1)
+    # df = pd.read_csv(r'C:\Users\Asus\Documents\MAJO\Universidad\SEMESTRE 10\INTELIGENCIA ARTIFICIAL\DATOS.txt', sep=",", header=None,  names=["x1", "x2", "y"])
+    # datos = df[0:300]
+    # x1 = datos["x1"]
+    # x2 = datos["x2"]
+    # xi = np.transpose(np.array([x1,x2]))
+    # y = np.array(datos["y"]).reshape(-1,1)
+
+    xi = np.array([[0,0],
+                   [0,1],
+                   [1,0],
+                   [1,1]])
+    # OR
+    y = np.array([[0],
+                  [1],
+                  [1],
+                  [1]])
 
     niter = 200
     nlayers = 3
     layers_size = [2,1,1]
-    act_func = 'tanh'
+    act_func = 'sigmoide'
 
     MLperceptron = MultilayerPerceptron(act_func, niter, nlayers, layers_size, xi, y)
     y_hat, average_energy, average_error, w = MLperceptron.main()
