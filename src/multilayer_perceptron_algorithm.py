@@ -5,32 +5,51 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from typing import List, Union
 from activation_functions import ActivationFunctions
+from sklearn.model_selection import train_test_split
 
 class MultilayerPerceptron(object):
 
-    def __init__(self, act_func, niter: int, learning_rate: List[float], nlayers: int, layers_size: List[int], xi: np.array, y: np.array) -> None:
+    def __init__(self, xi, y, act_func, niter: int, learning_rate: List[float], nlayers: int, hidden_neurons, w) -> None:
         self.niter = niter
         self.learning_rate = learning_rate
         self.nlayers = nlayers
-        self.layers_size = layers_size
+        self.hidden_neurons = hidden_neurons
         self.xi = xi
         self.y = y
-        self.m, self.n = xi.shape
-        self.wi = self.initializing_w()
-        self.act_func = act_func
+        self.m, self.n = self.xi.shape
+        _, self.l = self.y.shape
+        self.layers_size = self.define_layers_size()
+        if w == []:
+            self.wi = self.initializing_w()
+        else:
+            self.wi = self.initializing_w(True)
+        self.act_func = [act_func]*self.nlayers
         self.AF = ActivationFunctions()
-        np.random.seed(10)
+        # np.random.seed(10)
 
-    def initializing_w(self) -> List[float]:
+    def initializing_w(self, train_w = False):
         wi_list = []
         input = self.xi[0].reshape(1,self.n)
         _, n_inputs = input.shape
-        for layer in range(self.nlayers):
-            wi = np.random.rand(n_inputs, self.layers_size[layer])
-            # wi = np.full((n_inputs, self.layers_size[layer]), random.random())
-            n_inputs = self.layers_size[layer]
-            wi_list.append(wi)
+        if train_w == False:
+            for layer in range(self.nlayers):
+                wi = np.random.rand(n_inputs, self.layers_size[layer])
+                n_inputs = self.layers_size[layer]
+                wi_list.append(wi)
+        else:
+            for layer in range(self.nlayers):
+                wi = np.random.rand(n_inputs, self.layers_size[layer])
+                n_inputs = self.layers_size[layer]
+                wi_list.append(wi)
+
         return wi_list
+
+    def define_layers_size(self):
+        num_hidden_neurons = self.nlayers-2
+        hidden_layers_neurons = [self.hidden_neurons]*num_hidden_neurons
+        hidden_layers_neurons.insert(0, self.n)
+        hidden_layers_neurons.extend([self.l])
+        return hidden_layers_neurons
 
     def forward_propagation(self, xi_row: np.array) -> Union[np.array, np.array, np.array]:
         inputs = xi_row.reshape(1,self.n)
@@ -52,18 +71,13 @@ class MultilayerPerceptron(object):
         local_gradients_layers = [local_gradient]
         # Para la capa de salida
         Yj = output_per_layer[-2]
-        delta_w = self.delta_w(local_gradient, Yj) # delta_w de la capa de salida
+        delta_w = self.delta_w(local_gradient, Yj)
         delta_w_list.insert(0, delta_w.T)
         # Para el resto de las capas
-        # previous_local_gredient = local_gradient
-        # previous_w = w
         for layer in reversed(range(self.nlayers-1)):
-            # sumatoria = previous_local_gredient*previous_w
             local_field = local_field_layers[layer]
             local_gradient = self.local_gradient_hidden_layer(layer, local_field, local_gradient)
             local_gradients_layers.insert(0, local_gradient)
-            # previous_local_gredient = local_gradient
-            # previous_w = self.wi[layer]
             Yj = output_per_layer[layer-1]
             if layer == 0:
                 Yj = inputs
@@ -97,8 +111,6 @@ class MultilayerPerceptron(object):
 
     def update_weights(self, delta_w, learning_rate):
         for layer in range(self.nlayers):
-            # if self.wi[layer].shape != delta_w[layer].shape:
-            #     delta_w[layer] = delta_w[layer].T
             self.wi[layer] += learning_rate*delta_w[layer]
         return self.wi
 
@@ -147,7 +159,7 @@ class MultilayerPerceptron(object):
     def average_local_gradients(self, local_gradient_list):
         suma = 0
         suma_aux = []
-        m = len(local_gradient_list[0][0])
+        m = len(local_gradient_list[0])
         n = len(local_gradient_list)
         for i in range(m):
             for patron in local_gradient_list:
@@ -157,25 +169,32 @@ class MultilayerPerceptron(object):
         return average_local_gradients
 
     def plot_local_gradient(self, local_gradient_per_iter):
-        epoca = [iter for iter in range(self.niter)]
-        plt.title('Gradiente local con función de activación ' + self.act_func[-1])
+        plt.title('Gradiente local con función de activación ' + self.act_func[-1] + ', lr = ' + str(self.learning_rate) + ' y ' + str(self.nlayers-2) + ' capas ocultas')
         plt.ylabel('Gradiente local')
         plt.xlabel('Epoca')
-        plt.plot(local_gradient_per_iter)
+        plt.plot(local_gradient_per_iter[0], label = '1 neuron in hidden layer')
+        plt.plot(local_gradient_per_iter[1], label = '2 neuron in hidden layer')
+        plt.plot(local_gradient_per_iter[2], label = '3 neuron in hidden layer')
+        plt.plot(local_gradient_per_iter[3], label = '4 neuron in hidden layer')
+        plt.plot(local_gradient_per_iter[4], label = '5 neuron in hidden layer')
+        plt.tight_layout()
+        plt.legend()
         plt.show()
 
     def plot_errors(self, errors):
-        epoca = [iter for iter in range(self.niter)]
-        plt.title('Errores promedio para cada epoca')
+        plt.title('Errores promedio con función de activación ' + self.act_func[-1] + ', lr = ' + str(self.learning_rate) + ' y ' + str(self.nlayers-2) + ' capas ocultas')
         plt.ylabel('Errors')
         plt.xlabel('Epoca')
-        plt.plot(errors)
+        plt.plot(errors[0], label = '1 neuron in hidden layer')
+        plt.plot(errors[1], label = '2 neuron in hidden layer')
+        plt.plot(errors[2], label = '3 neuron in hidden layer')
+        plt.plot(errors[3], label = '4 neuron in hidden layer')
+        plt.plot(errors[4], label = '5 neuron in hidden layer')
+        plt.tight_layout()
+        plt.legend()
         plt.show()
 
     def plot_y_hat_vs_y_real(self, y_hat):
-        # y_hat = [y[0][0] for y[0] in y_hat]
-        # epoca = [iter for iter in range(50)]
-        # y_real = [y[0][0] for y[0] in self.y]
         m = len(y_hat)
         n = len(y_hat[0][0])
         y_hat = np.array(y_hat).reshape(m,n)
@@ -183,24 +202,11 @@ class MultilayerPerceptron(object):
         plt.title('y_real vs y_estimada')
         plt.ylabel('y')
         plt.xlabel('Epoca')
-        # plt.plot(epoca, y_hat)
-        # plt.plot(epoca, y_real)
         plt.plot(y_hat, label= "y_estimada")
         plt.plot(y_real, label= "y_real")
         plt.tight_layout()
         plt.legend()
         plt.show()
-
-    # def read_data(self, file):
-    #     df = pd.read_csv(file, sep=",", header=None,  names=["x1", "x2", "y"])
-    #     df_new = df[0:300]
-    #     df_normalized=(df_new-df_new.min())/(df_new.max()-df_new.min())
-    #     df_normalized = df_normalized.dropna()
-    #     x1 = df_normalized["x1"]
-    #     x2 = df_normalized["x2"]
-    #     xi = np.transpose(np.array([x1,x2]))
-    #     y = np.array(df_new["y"]).reshape(-1,1)
-    #     return xi, y
 
     def main(self):
         average_error_per_iter = []
@@ -237,96 +243,50 @@ class MultilayerPerceptron(object):
                 patron += 1
             # Promedios
             average_energy = np.mean(instant_energy)
-            average_error_per_iter.append(average_energy)
-            # average_error = np.mean(error_list)
-            # average_local_gradient = np.mean(local_gradient_list)
             average_local_gradient = self.average_local_gradients(local_gradient_list)
             average_delta_w = self.average_delta_w(delta_w_list)
 
-            # average_error_per_iter.append(average_error)
+            average_error_per_iter.append(average_energy)
             local_gradient_per_iter.append(average_local_gradient)
 
             self.wi = self.update_weights(average_delta_w, self.learning_rate)
-        # Plots
-        self.plot_local_gradient(local_gradient_per_iter)
-        self.plot_errors(average_error_per_iter)
-        self.plot_y_hat_vs_y_real(y_hat_list)
-        return y_hat_list, average_energy, self.wi
+        return y_hat_list, average_energy, self.wi, local_gradient_per_iter, average_error_per_iter
 
 #%%
 if __name__ == '__main__':
-    # Cargar datos
-    # df = pd.read_csv(r'C:\Users\Asus\Documents\MAJO\Universidad\SEMESTRE 10\INTELIGENCIA ARTIFICIAL\DATOS.txt', sep=",", header=None,  names=["x1", "x2", "y"])
-    # df_new = df[1000:1300]
-    # df_normalized=(df_new-df_new.min())/(df_new.max()-df_new.min())
-    # df_normalized = df_normalized.dropna()
-    # x1 = df_normalized["x1"]
-    # x2 = df_normalized["x2"]
-    # xi = np.transpose(np.array([x1,x2]))
-    # y = np.array(df_new["y"]).reshape(-1,1)
+    df = pd.read_csv(r'C:\Users\Asus\Documents\MAJO\Universidad\SEMESTRE 10\INTELIGENCIA ARTIFICIAL\DATOS.txt', sep=",", header=None,  names=["x1", "x2", "y"])
+    # df = pd.read_excel(file, header=None, names=["x1", "x2", "y"])
+    df_new = df[100:400]
+    df_normalized=(df_new-df_new.min())/(df_new.max()-df_new.min())
+    df_normalized = df_normalized.dropna()
+    x1 = df_normalized["x1"]
+    x2 = df_normalized["x2"]
+    xi = np.transpose(np.array([x1,x2]))
+    y = np.array(df_normalized["y"]).reshape(-1,1)
+    xi_train, xi_rem, y_train, y_rem = train_test_split(xi,y, train_size=0.6)
+    xi_test, xi_valid, y_test, y_valid = train_test_split(xi_rem,y_rem, train_size=0.5)
 
-    xi = np.array([[0,0],
-                   [0,1],
-                   [1,0],
-                   [1,1]])
-
-    y = np.array([[0],
-                  [1],
-                  [1],
-                  [1]])
-
-    _,n = xi.shape
-    _,m = y.shape
-    nlayers = 4
-    layers_size = [n,5,5,m]
-    niter = 50
+    df_average_energy = pd.DataFrame(columns=['Learning Rate', 'Architecture', 'Average Energy'])
     learning_rate = [0.2, 0.5, 0.9]
-    act_func = ['sigmoide', 'sigmoide', 'sigmoide', 'sigmoide']
-
-    MLperceptron = MultilayerPerceptron(act_func, niter, learning_rate, nlayers, layers_size, xi, y)
-    y_hat, average_energy, w = MLperceptron.main()
-    print('y_hat: ', y_hat)
-    print('w: ', w)
-    print('average_energy: ', average_energy)
-#%%
-    # xi = np.array([[0,0],
-    #                [0,1],
-    #                [1,0],
-    #                [1,1]])
-    # xi = np.array([[1,2],
-    #                [3,4],
-    #                [5,6],
-    #                [7,8]])
-    # OR
-    # y = np.array([[0],
-    #               [1],
-    #               [1],
-    #               [1]])
-
-    # XOR
-    # y = np.array([[0],
-    #               [1],
-    #               [1],
-    #               [0]])
-
-    # XNOR
-    # y = np.array([[1],
-    #               [0],
-    #               [0],
-    #               [1]])
-
-    # AND
-    # y = np.array([[0],
-    #               [0],
-    #               [0],
-    #               [1]])
-
-    # y = np.array([[1],
-    #               [0],
-    #               [0],
-    #               [0]])
-    # y = np.array([[2],
-    #               [5],
-    #               [7],
-    #               [10]])
-#%%
+    num_layers = [3, 4, 5] # 1, 2 o 3 capas ocultas
+    num_hidden_neurons = [1, 2, 3, 4, 5] # numero de neuronas en las capas ocultas
+    niter = 50
+    tolerance = 0.002
+    act_func = 'sigmoide'
+    train_w = []
+    aux_w = []
+    for lr in learning_rate:
+        for nlayers in num_layers:
+            local_gradients_switching_neurons = []
+            average_errors_switching_neurons = []
+            for hidden_neurons in num_hidden_neurons:
+                MLperceptron = MultilayerPerceptron(xi_train, y_train, act_func, niter, lr, nlayers, hidden_neurons, aux_w)
+                y_hat, average_energy, w, local_gradient_per_iter, average_error_per_iter = MLperceptron.main()
+                train_w.append(w)
+                local_gradients_switching_neurons.append(local_gradient_per_iter)
+                average_errors_switching_neurons.append(average_error_per_iter)
+                df_average_energy = df_average_energy.append({'Learning Rate':lr,
+                                                              'Architecture':MLperceptron.layers_size,
+                                                              'Average Energy': average_energy}, ignore_index = True)
+            MLperceptron.plot_local_gradient(local_gradients_switching_neurons)
+            MLperceptron.plot_errors(average_errors_switching_neurons)
