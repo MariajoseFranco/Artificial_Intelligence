@@ -23,6 +23,7 @@ class MultilayerPerceptron(object):
             self.wi = self.initializing_w()
         else:
             self.wi = self.initializing_w(True)
+        self.bias = self.initializing_bias()
         self.act_func = [act_func]*self.nlayers
         self.AF = ActivationFunctions()
         # np.random.seed(10)
@@ -41,8 +42,14 @@ class MultilayerPerceptron(object):
                 wi = np.random.rand(n_inputs, self.layers_size[layer])
                 n_inputs = self.layers_size[layer]
                 wi_list.append(wi)
-
         return wi_list
+
+    def initializing_bias(self):
+        bias_list = []
+        for layer in range(self.nlayers):
+            bias = np.random.rand(self.layers_size[layer], 1)*0
+            bias_list.append(bias)
+        return bias_list
 
     def define_layers_size(self):
         num_hidden_neurons = self.nlayers-2
@@ -58,8 +65,9 @@ class MultilayerPerceptron(object):
         outputs_list = []
         for layer in range(self.nlayers):
             wi = self.wi[layer]
+            bias = self.bias[layer]
             act_func = self.act_func[layer]
-            y_hat, local_field = self.activation_function(act_func, inputs, wi)
+            y_hat, local_field = self.activation_function(act_func, inputs, wi, bias)
             outputs_list.append(y_hat)
             local_field_list.append(local_field)
             inputs = y_hat
@@ -68,22 +76,27 @@ class MultilayerPerceptron(object):
     def backward_propagation(self, local_field_layers, local_gradient, output_per_layer, xi_row):
         inputs = xi_row.reshape(1,self.n)
         delta_w_list = []
+        delta_bias_list = []
         local_gradients_layers = [local_gradient]
         # Para la capa de salida
         Yj = output_per_layer[-2]
         delta_w = self.delta_w(local_gradient, Yj)
+        delta_bias = local_gradient
         delta_w_list.insert(0, delta_w.T)
+        delta_bias_list.insert(0, delta_bias.T)
         # Para el resto de las capas
         for layer in reversed(range(self.nlayers-1)):
             local_field = local_field_layers[layer]
+            delta_bias = self.delta_bias_hidden_layer(layer, local_field, local_gradient)
             local_gradient = self.local_gradient_hidden_layer(layer, local_field, local_gradient)
+            delta_bias_list.insert(0, delta_bias.T)
             local_gradients_layers.insert(0, local_gradient)
             Yj = output_per_layer[layer-1]
             if layer == 0:
                 Yj = inputs
             delta_w = self.delta_w(local_gradient, Yj)
             delta_w_list.insert(0, delta_w.T)
-        return delta_w_list, local_gradients_layers
+        return delta_w_list, local_gradients_layers, delta_bias_list
 
     def output_error(self, y, y_hat):
         y = y.reshape(1,y.shape[0])
@@ -99,8 +112,8 @@ class MultilayerPerceptron(object):
         average_energy = (1/N)*np.sum(instant_energy)
         return average_energy
 
-    def activation_function(self, activation_function, xi_row, wi):
-        local_field = np.dot(xi_row, wi)
+    def activation_function(self, activation_function, xi_row, wi, bias):
+        local_field = np.dot(xi_row, wi) + bias.T
         if activation_function == 'lineal':
             y_hat = self.AF.lineal_function(local_field)
         elif activation_function == 'sigmoide':
@@ -113,6 +126,11 @@ class MultilayerPerceptron(object):
         for layer in range(self.nlayers):
             self.wi[layer] += learning_rate*delta_w[layer]
         return self.wi
+
+    def update_bias(self, delta_bias, learning_rate):
+        for layer in range(self.nlayers):
+            self.bias[layer] += learning_rate*delta_bias[layer]
+        return self.bias
 
     def delta_w(self, local_gradient, Yj):
         delta_w = np.dot(local_gradient.T, Yj)
@@ -155,6 +173,24 @@ class MultilayerPerceptron(object):
             local_field_derivate = self.AF.tanh_derivate(local_field)
         local_gradient_j = local_field_derivate*sumatoria
         return local_gradient_j
+
+    def delta_bias_hidden_layer(self, layer, local_field, local_gradient_k):
+        bias_kj = self.bias[layer+1]
+        m,n = bias_kj.shape
+        sumatoria = np.zeros((1, n))
+        for i in range(m):
+            biaskj = bias_kj.T[:, i]
+            local_gradient = local_gradient_k[0][i]
+            product = local_gradient*biaskj
+            sumatoria += product
+        if self.act_func[layer] == 'lineal':
+            local_field_derivate = self.AF.lineal_derivate(local_field)
+        elif self.act_func[layer] == 'sigmoide':
+            local_field_derivate = self.AF.sigmoid_derivate(local_field)
+        elif self.act_func[layer] == 'tanh':
+            local_field_derivate = self.AF.tanh_derivate(local_field)
+        delta_bias = local_field_derivate*sumatoria
+        return delta_bias
 
     def average_local_gradients(self, local_gradient_list):
         suma = 0
@@ -218,6 +254,7 @@ class MultilayerPerceptron(object):
             error_list = []
             local_gradient_list = []
             delta_w_list = []
+            delta_bias_list = []
             local_gradients_layers_list = []
             # Se hace este for por patron (xi_row --> patron)
             for xi_row in self.xi:
@@ -236,18 +273,21 @@ class MultilayerPerceptron(object):
                 inst_energy = self.error_instant_energy(error_list[patron])
                 instant_energy.append(inst_energy)
 
-                delta_w_per_layer, local_gradients_layers = self.backward_propagation(local_field_per_layer, local_gradient_k, output_per_layer, xi_row)
+                delta_w_per_layer, local_gradients_layers, delta_bias_per_layer = self.backward_propagation(local_field_per_layer, local_gradient_k, output_per_layer, xi_row)
                 delta_w_list.append(delta_w_per_layer)
                 local_gradients_layers_list.append(local_gradients_layers)
+                delta_bias_list.append(delta_bias_per_layer)
 
                 patron += 1
             # Promedios
             average_energy = np.mean(instant_energy)
             average_local_gradient = self.average_local_gradients(local_gradient_list)
             average_delta_w = self.average_delta_w(delta_w_list)
+            average_delta_bias = self.average_delta_w(delta_bias_list)
 
             average_error_per_iter.append(average_energy)
             local_gradient_per_iter.append(average_local_gradient)
 
             self.wi = self.update_weights(average_delta_w, self.learning_rate)
+            self.bias = self.update_bias(average_delta_bias, self.learning_rate)
         return y_hat_list, average_energy, self.wi, local_gradient_per_iter, average_error_per_iter
