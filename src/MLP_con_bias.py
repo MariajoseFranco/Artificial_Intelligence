@@ -1,3 +1,4 @@
+
 # MULTILAYER PERCEPTRON ALGORITHM
 #%%
 import numpy as np
@@ -9,7 +10,7 @@ from sklearn.model_selection import train_test_split
 
 class MultilayerPerceptron(object):
 
-    def __init__(self, xi, y, act_func, niter: int, learning_rate: List[float], nlayers: int, hidden_neurons, w) -> None:
+    def __init__(self, xi, y, act_func, niter: int, learning_rate: List[float], nlayers: int, hidden_neurons, encode) -> None:
         self.niter = niter
         self.learning_rate = learning_rate
         self.nlayers = nlayers
@@ -19,35 +20,48 @@ class MultilayerPerceptron(object):
         self.m, self.n = self.xi.shape
         _, self.l = self.y.shape
         self.layers_size = self.define_layers_size()
-        self.wi = self.initializing_w()
-        self.bias = self.initializing_bias()
+        self.encode = encode
+        if self.encode == False:
+            self.wi = self.initializing_w()
+            self.bias = self.initializing_bias()
+        else:
+            self.wi = self.initializing_w(True)
+            self.bias = self.initializing_bias(True)
         self.act_func = [act_func]*self.nlayers
         self.AF = ActivationFunctions()
         # np.random.seed(10)
 
-    def initializing_w(self, train_w = False):
+    def initializing_w(self, encode = False):
         wi_list = []
         input = self.xi[0].reshape(1,self.n)
         _, n_inputs = input.shape
-        if train_w == False:
+        if encode == False:
             for layer in range(self.nlayers):
                 wi = np.random.rand(n_inputs, self.layers_size[layer])
                 n_inputs = self.layers_size[layer]
                 wi_list.append(wi)
         else:
-            for layer in range(self.nlayers):
+            for layer in range(self.nlayers-1):
                 wi = np.random.rand(n_inputs, self.layers_size[layer])
                 n_inputs = self.layers_size[layer]
                 wi_list.append(wi)
+            n_inputs = self.layers_size[1]
+            wi = np.random.rand(n_inputs, self.layers_size[0])
+            wi_list.append(wi)
         return wi_list
 
-    def initializing_bias(self):
+    def initializing_bias(self, encode = False):
         bias_list = []
-        for layer in range(self.nlayers-1):
-            bias = np.zeros((self.layers_size[layer], 1))
+        if encode == False:
+            for layer in range(self.nlayers):
+                bias = np.zeros((self.layers_size[layer], 1))
+                bias_list.append(bias)
+        else:
+            for layer in range(self.nlayers-1):
+                bias = np.zeros((self.layers_size[layer], 1))
+                bias_list.append(bias)
+            bias = np.zeros((self.layers_size[0], 1))
             bias_list.append(bias)
-        bias = np.zeros((self.layers_size[0], 1))
-        bias_list.append(bias)
         return bias_list
 
     def define_layers_size(self):
@@ -58,25 +72,19 @@ class MultilayerPerceptron(object):
         return hidden_layers_neurons
 
     def forward_propagation(self, xi_row: np.array) -> Union[np.array, np.array, np.array]:
-        inputs = xi_row.reshape(1,self.n)
+        inputs = xi_row.reshape(1, self.n)
         # Se hace este for por capa
         local_field_list = []
         outputs_list = []
-        outputs_estimated = []
         for layer in range(self.nlayers):
             wi = self.wi[layer]
             bias = self.bias[layer]
             act_func = self.act_func[layer]
             y_hat, local_field = self.activation_function(act_func, inputs, wi, bias)
-            if layer != 2:
-                y_est = y_hat.T*self.wi[layer+1]
-                outputs_estimated.append(y_est)
-            else:
-                outputs_estimated.append(y_hat.T)
             outputs_list.append(y_hat)
             local_field_list.append(local_field)
             inputs = y_hat
-        return outputs_estimated, local_field_list
+        return outputs_list, local_field_list
 
     def backward_propagation(self, local_field_layers, local_gradient, output_per_layer, xi_row):
         inputs = xi_row.reshape(1,self.n)
@@ -86,19 +94,19 @@ class MultilayerPerceptron(object):
         # Para la capa de salida
         Yj = output_per_layer[-2]
         delta_w = self.delta_w(local_gradient, Yj)
-        delta_w_list.insert(0, delta_w.T)
         delta_bias = local_gradient
+        delta_w_list.insert(0, delta_w.T)
         delta_bias_list.insert(0, delta_bias.T)
         # Para el resto de las capas
         for layer in reversed(range(self.nlayers-1)):
             local_field = local_field_layers[layer]
             local_gradient = self.local_gradient_hidden_layer(layer, local_field, local_gradient)
-            local_gradients_layers.insert(0, local_gradient)
             delta_bias = local_gradient
             delta_bias_list.insert(0, delta_bias.T)
+            local_gradients_layers.insert(0, local_gradient)
             Yj = output_per_layer[layer-1]
             if layer == 0:
-                Yj = inputs.T
+                Yj = inputs
             delta_w = self.delta_w(local_gradient, Yj)
             delta_w_list.insert(0, delta_w.T)
         return delta_w_list, local_gradients_layers, delta_bias_list
@@ -134,11 +142,11 @@ class MultilayerPerceptron(object):
 
     def update_bias(self, delta_bias, learning_rate):
         for layer in range(self.nlayers):
-            self.bias[layer] += learning_rate*delta_bias[layer].T
+            self.bias[layer] += learning_rate*delta_bias[layer]
         return self.bias
 
     def delta_w(self, local_gradient, Yj):
-        delta_w = local_gradient*Yj
+        delta_w = np.dot(local_gradient.T, Yj)
         return delta_w
 
     def average_delta_w(self, delta_w_list):
@@ -149,17 +157,7 @@ class MultilayerPerceptron(object):
             for patron in range(N):
                 dw = dw + delta_w_list[patron][layer]
             avg_dw = dw/N
-            average_dw_list.append(avg_dw.T)
-        return average_dw_list
-
-    def average_delta_Yj(self, delta_w_list):
-        N = len(delta_w_list)
-        average_dw_list = []
-        dw = np.zeros(delta_w_list[0][0].shape)
-        for patron in range(N):
-            dw = dw + delta_w_list[patron][0]
-        avg_dw = dw/N
-        average_dw_list.append(avg_dw)
+            average_dw_list.append(avg_dw)
         return average_dw_list
 
     def local_gradient_output_layer(self, error, local_field_k):
@@ -189,6 +187,24 @@ class MultilayerPerceptron(object):
         local_gradient_j = local_field_derivate*sumatoria
         return local_gradient_j
 
+    # def delta_bias_hidden_layer(self, layer, local_field, local_gradient_k):
+    #     bias_kj = self.bias[layer+1]
+    #     m,n = bias_kj.shape
+    #     sumatoria = np.zeros((1, n))
+    #     for i in range(m):
+    #         biaskj = bias_kj.T[:, i]
+    #         local_gradient = local_gradient_k[0][i]
+    #         product = local_gradient*biaskj
+    #         sumatoria += product
+    #     if self.act_func[layer] == 'lineal':
+    #         local_field_derivate = self.AF.lineal_derivate(local_field)
+    #     elif self.act_func[layer] == 'sigmoide':
+    #         local_field_derivate = self.AF.sigmoid_derivate(local_field)
+    #     elif self.act_func[layer] == 'tanh':
+    #         local_field_derivate = self.AF.tanh_derivate(local_field)
+    #     delta_bias = local_field_derivate*sumatoria
+    #     return delta_bias
+
     def average_local_gradients(self, local_gradient_list):
         suma = 0
         suma_aux = []
@@ -212,16 +228,13 @@ class MultilayerPerceptron(object):
         plt.legend()
         plt.show()
 
-    def plot_errors(self, errors, low_dim):
+    def plot_errors(self, errors):
         plt.title('Errores promedio con función de activación ' + self.act_func[-1] + ', lr = ' + str(self.learning_rate) + ' y ' + str(self.nlayers-2) + ' capas ocultas')
         plt.ylabel('Errors')
         plt.xlabel('Epoca')
-        if low_dim == True:
-            for neuron in range(self.hidden_neurons):
-                plt.plot(errors[neuron], label = str(neuron+1) + ' neuron in hidden layer')
-        else:
-            for neuron in range(self.hidden_neurons-7):
-                plt.plot(errors[neuron], label = str(neuron+8) + ' neuron in hidden layer')
+        # plt.plot(errors[0], label = str(self.hidden_neurons) + ' neuron in hidden layer')
+        for neuron in range(self.hidden_neurons):
+            plt.plot(errors[neuron], label = str(neuron+1) + ' neuron in hidden layer')
         plt.tight_layout()
         plt.legend()
         plt.show()
@@ -240,13 +253,34 @@ class MultilayerPerceptron(object):
         plt.legend()
         plt.show()
 
+    def plot_x_hat_vs_x_real(self, y_hat):
+        y_hat = np.array(y_hat)
+        l, m, _, n = y_hat.shape
+        y_hat = y_hat.reshape((l,m,n))
+        x_real = self.xi
+        plt.title('x_estimada vs x_real con la función de activación ' + self.act_func[-1] + ', lr = ' + str(self.learning_rate) + ' y ' + str(self.nlayers-2) + ' capas ocultas')
+        plt.ylabel('x')
+        plt.xlabel('Epoca')
+        plt.plot(y_hat[0], label = '1 neuron in hidden layer')
+        plt.plot(y_hat[1], label = '2 neuron in hidden layer')
+        plt.plot(y_hat[2], label = '3 neuron in hidden layer')
+        plt.plot(y_hat[3], label = '4 neuron in hidden layer')
+        plt.plot(y_hat[4], label = '5 neuron in hidden layer')
+        plt.plot(x_real, label = 'X real')
+        plt.tight_layout()
+        plt.legend()
+        plt.show()
+
+    def dw(self, lg, Yj):
+        delta_w = np.dot(lg.T, Yj)
+        return delta_w
+
     def main(self):
         average_error_per_iter = []
         local_gradient_per_iter = []
         for iter in range(self.niter): # iter = epoca
             patron = 0
             y_hat_list = []
-            Yj = []
             instant_energy = []
             error_list = []
             local_gradient_list = []
@@ -261,7 +295,10 @@ class MultilayerPerceptron(object):
                 y_hat_list.append(y_hat_k)
                 local_field_k = local_field_per_layer[-1]
 
-                error = self.output_error(self.y[patron], y_hat_k.T)
+                if self.encode == False:
+                    error = self.output_error(self.y[patron], y_hat_k)
+                else:
+                    error = self.output_error(xi_row, y_hat_k)
                 error_list.append(error)
 
                 local_gradient_k = self.local_gradient_output_layer(error, local_field_k)
@@ -272,8 +309,8 @@ class MultilayerPerceptron(object):
 
                 delta_w_per_layer, local_gradients_layers, delta_bias_per_layer = self.backward_propagation(local_field_per_layer, local_gradient_k, output_per_layer, xi_row)
                 delta_w_list.append(delta_w_per_layer)
-                delta_bias_list.append(delta_bias_per_layer)
                 local_gradients_layers_list.append(local_gradients_layers)
+                delta_bias_list.append(delta_bias_per_layer)
 
                 patron += 1
             # Promedios
@@ -285,6 +322,8 @@ class MultilayerPerceptron(object):
             average_error_per_iter.append(average_energy)
             local_gradient_per_iter.append(average_local_gradient)
 
+            dw = self.dw(average_local_gradient, y_hat_list)
             self.wi = self.update_weights(average_delta_w, self.learning_rate)
-            self.bias = self.update_bias(average_delta_bias, self.learning_rate)
+            # self.bias = self.update_bias(average_delta_bias, self.learning_rate)
         return y_hat_list, average_energy, self.wi, local_gradient_per_iter, average_error_per_iter
+
