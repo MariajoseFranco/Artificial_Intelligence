@@ -1,0 +1,3 @@
+# Autoencoder
+
+En este script se encuentra la ejecucion del autoencoder propuesto para el trabajo. Para la ejecucion de este script solo es necesario correr la celda inicial desde la esquina izquierda arriba donde dice "Run Cell". Este Script instancia al script multilayer_perceptron_algorithm y desde este ultimo mencionado se instancia al script de activation_functions, pero todo se corre desde el script autoencoder.py.
